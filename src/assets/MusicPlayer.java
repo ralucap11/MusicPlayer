@@ -4,8 +4,8 @@ import javazoom.jl.player.advanced.AdvancedPlayer;
 import javazoom.jl.player.advanced.PlaybackEvent;
 import javazoom.jl.player.advanced.PlaybackListener;
 
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
+import java.io.*;
+import java.util.ArrayList;
 
 public class MusicPlayer extends PlaybackListener {
     //it's used to update isPaused more synchronously
@@ -15,7 +15,13 @@ public class MusicPlayer extends PlaybackListener {
     private MusicPlayerGUI musicPlayerGUI;
     //store song details
     private Song currentSong;
+    public Song getCurrentSong(){
+        return currentSong;
+    }
 
+    private ArrayList<Song> playlist;
+   //keeps track the index we are in the playlist
+    private int currentPlaylistIndex;
     //use JLayer library to create an AdancedPlayer obj which will handle playing the music
     private AdvancedPlayer advancedPlayer;
 
@@ -24,10 +30,19 @@ public class MusicPlayer extends PlaybackListener {
 
     //stores the 10 last frames (used for pausing and resuming)
     private int currentFrame;
+  private boolean songFinished;
+    private boolean pressedNext, pressedPrev;
+    public void setCurrentFrame(int frame){
+        currentFrame = frame;
+    }
+
 
     //tracks how many milliseconds has passed since playing the song
     private int currentTimeInMilliseconds;
+   public void setCurrentTimeInMilliseconds(int timeInMilliseconds){
+       currentTimeInMilliseconds = timeInMilliseconds;
 
+   }
 
     public MusicPlayer(MusicPlayerGUI musicPlayerGUI) {
         this.musicPlayerGUI = musicPlayerGUI;
@@ -35,10 +50,87 @@ public class MusicPlayer extends PlaybackListener {
 
     public void loadSong(Song song) {
         currentSong = song;
+        playlist = null;
+        //stop the song if possible
         if (currentSong != null) {
+            //reset frame
+            currentFrame = 0;
+            //reset current time in milliseconds
+            currentTimeInMilliseconds = 0;
+            //update gui
+            musicPlayerGUI.setPlaybackSliderValue(0);
             playCurrentSong();
         }
     }
+
+    public void loadPlaylist(File playlistFile){
+       playlist = new ArrayList<>();
+       //store the paths from the text file into the playlist array list
+        try{
+                FileReader fileReader = new FileReader((playlistFile));
+                BufferedReader bufferedReader = new BufferedReader(fileReader);
+                String songPath;
+                while((songPath = bufferedReader.readLine()) != null){
+                    //create song object based on song path
+                    Song song = new Song(songPath);
+                    //add to playlist arraylist
+                    playlist.add(song);
+                }
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+
+        if(playlist.size() >0){
+            //reset playback slider
+            musicPlayerGUI.setPlaybackSliderValue(0);
+            currentTimeInMilliseconds = 0;
+            //update the current song o the first song in the playlist
+            currentSong = playlist.get(0);
+            currentFrame = 0;
+            //update gui
+            musicPlayerGUI.enablePauseButtonDisablePlayButton();
+            musicPlayerGUI.updateSongTitleAndArtist(currentSong);
+            musicPlayerGUI.updatePlaybackSlider(currentSong);
+
+            //start song
+            playCurrentSong();
+        }
+    }
+
+    public void nextSong(){
+        // no need to go to the next song if there is no playlist
+        if(playlist == null) return;
+
+        // check to see if we have reached the end of the playlist, if so then don't do anything
+        if(currentPlaylistIndex + 1 > playlist.size() - 1) return;
+
+        pressedNext = true;
+
+        // stop the song if possible
+        if(!songFinished)
+            stopSong();
+
+        // increase current playlist index
+        currentPlaylistIndex++;
+
+        // update current song
+        currentSong = playlist.get(currentPlaylistIndex);
+
+        // reset frame
+        currentFrame = 0;
+
+        // reset current time in milli
+        currentTimeInMilliseconds = 0;
+
+        // update gui
+        musicPlayerGUI.enablePauseButtonDisablePlayButton();
+        musicPlayerGUI.updateSongTitleAndArtist(currentSong);
+        musicPlayerGUI.updatePlaybackSlider(currentSong);
+
+        // play the song
+        playCurrentSong();
+    }
+
 
     public void pauseSong() {
         if (advancedPlayer != null) {
@@ -57,7 +149,39 @@ public class MusicPlayer extends PlaybackListener {
 
         }
     }
+    public void prevSong(){
+        // no need to go to the next song if there is no playlist
+        if(playlist == null) return;
 
+        // check to see if we can go to the previous song
+        if(currentPlaylistIndex - 1 < 0) return;
+
+        pressedPrev = true;
+
+        // stop the song if possible
+        if(!songFinished)
+            stopSong();
+
+        // decrease current playlist index
+        currentPlaylistIndex--;
+
+        // update current song
+        currentSong = playlist.get(currentPlaylistIndex);
+
+        // reset frame
+        currentFrame = 0;
+
+        // reset current time in milli
+        currentTimeInMilliseconds = 0;
+
+        // update gui
+        musicPlayerGUI.enablePauseButtonDisablePlayButton();
+        musicPlayerGUI.updateSongTitleAndArtist(currentSong);
+        musicPlayerGUI.updatePlaybackSlider(currentSong);
+
+        // play the song
+        playCurrentSong();
+    }
     public void playCurrentSong() {
         //in case we press the play button without any song
         if (currentSong == null)
@@ -74,7 +198,7 @@ public class MusicPlayer extends PlaybackListener {
             //start music
             startMusicThread();
 
-            //start playbak slider thread
+            //start playback slider thread
             startPlaybackSlider();
         } catch (Exception e) {
             e.printStackTrace();
@@ -122,7 +246,7 @@ public class MusicPlayer extends PlaybackListener {
 
                     if(isPaused){
                         try{
-                            //wait till it gets notified by other thread to continue
+                            //wait till it gets notified by the other thread to continue
                             //makes sure isPaused boolean flag updates to false before continuing
                             synchronized (playSignal) {
                                 playSignal.wait();

@@ -330,7 +330,7 @@ public class MusicPlayerGUI extends JFrame {
         try {
             //reads the image file
             BufferedImage image = ImageIO.read(new File(imagePath));
-            //return an image icon so that our component canrender the image
+            //return an image icon so that our component can render the image
             return new ImageIcon(image);
 
         } catch (Exception e) {
